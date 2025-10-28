@@ -1,0 +1,40 @@
+version: '3.9'
+
+services:
+  backend:
+    build: ./Encuadrado-Back
+    container_name: encuadrado-back
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/encuadrado_db
+    depends_on:
+      - db
+
+  frontend:
+    build: ./Encuadrado-Front
+    container_name: encuadrado-front
+    ports:
+      - "5173:5173"
+    command: npm run dev
+    volumes:
+      - ./Encuadrado-Front:/app
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:16
+    container_name: encuadrado-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: encuadrado_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
