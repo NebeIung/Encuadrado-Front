@@ -1,31 +1,22 @@
 import { Outlet, useNavigate } from "react-router-dom";
-import { 
-  Container, 
-  AppBar, 
-  Toolbar, 
-  Button,
-  Box
-} from "@mui/material";
+import { AppBar, Toolbar, Button, Box, Container } from "@mui/material";
 
 export default function PublicLayout() {
   const navigate = useNavigate();
 
   return (
     <>
-      <AppBar position="static" color="secondary">
-        <Toolbar sx={{ justifyContent: "space-between" }}>
-          <Box 
+      <AppBar position="static" color="secondary" elevation={0}>
+        <Toolbar sx={{ justifyContent: "space-between", gap: 2 }}>
+          <Box
             component="img"
             src="/Cuad.svg"
-            alt="Logo"
-            sx={{ 
-              height: 100, 
-              cursor: "pointer"
-            }}
-            onClick={() => navigate("/")}
+            alt="Cuad"
+            sx={{ height: 48, cursor: "pointer" }}
+            onClick={() => navigate("/public")}
           />
 
-          <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
             <Button color="inherit" onClick={() => navigate("/public/reservar")}>
               Reservar hora
             </Button>
@@ -41,17 +32,12 @@ export default function PublicLayout() {
             <Button color="inherit" onClick={() => navigate("/public/terminos")}>
               Términos y Condiciones
             </Button>
-            <Button 
+
+            <Button
               variant="contained"
               color="primary"
               onClick={() => navigate("/login")}
-              sx={{ 
-                ml: 2,
-                fontWeight: "bold",
-                "&:hover": {
-                  backgroundColor: "primary.dark"
-                }
-              }}
+              sx={{ ml: 2, fontWeight: "bold" }}
             >
               Iniciar Sesión
             </Button>
