@@ -1,146 +1,249 @@
-import { Typography, Box, Button, Paper, Alert } from "@mui/material";
-import { Add as AddIcon, Settings as SettingsIcon } from "@mui/icons-material";
-import AppointmentsTable from "../../components/AppointmentsTable";
-import { useAppointments } from "../../hooks/useAppointments";
-import { useAuth, RoleBadge, CanAccess } from "../../contexts/AuthContext";
+import { 
+  Box, 
+  Typography, 
+  Grid, 
+  Card, 
+  CardContent,
+  Stack,
+} from "@mui/material";
+import { 
+  CalendarMonth as CalendarIcon,
+  AccessTime as TimeIcon,
+  CheckCircle as CheckIcon,
+  Cancel as CancelIcon,
+  Settings as SettingsIcon,
+  MedicalServices as ServicesIcon,
+  People as PeopleIcon,
+  PersonAdd as PersonAddIcon,
+} from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
+import { useAuth, CanAccess, RoleBadge } from "../../contexts/AuthContext";
+import { useEffect, useState } from "react";
+import { api } from "../../api/apiClient";
 
 export default function Dashboard() {
-  const { user, hasPermission } = useAuth();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [stats, setStats] = useState({
+    today: 0,
+    pending: 0,
+    confirmed: 0,
+    cancelled: 0
+  });
 
-  const { data: appointments = [], isLoading } = useAppointments(user?.email || "");
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
-  if (!user) {
-    return <Alert severity="error">No hay usuario autenticado</Alert>;
-  }
-
-  // Filtrar citas según el rol
-  const filteredAppointments = hasPermission("canViewAllAppointments")
-    ? appointments // Admin ve todas
-    : appointments.filter((apt: any) => {
-        // Member solo ve las suyas
-        return apt.professionalEmail === user.email;
+  const fetchStats = async () => {
+    try {
+      const response = await api.get('/appointments', {
+        params: { user: user?.email }
       });
+      
+      const appointments = response.data;
+      const today = new Date().toDateString();
+      
+      setStats({
+        today: appointments.filter((a: any) => 
+          new Date(a.date).toDateString() === today
+        ).length,
+        pending: appointments.filter((a: any) => a.status === 'pending').length,
+        confirmed: appointments.filter((a: any) => a.status === 'confirmed').length,
+        cancelled: appointments.filter((a: any) => a.status === 'cancelled').length,
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
+  const statsCards = [
+    { 
+      title: "Citas de Hoy", 
+      value: stats.today, 
+      icon: <CalendarIcon sx={{ fontSize: 40 }} />,
+      color: "#1976d2"
+    },
+    { 
+      title: "Pendientes", 
+      value: stats.pending, 
+      icon: <TimeIcon sx={{ fontSize: 40 }} />,
+      color: "#ed6c02"
+    },
+    { 
+      title: "Confirmadas", 
+      value: stats.confirmed, 
+      icon: <CheckIcon sx={{ fontSize: 40 }} />,
+      color: "#2e7d32"
+    },
+    { 
+      title: "Canceladas", 
+      value: stats.cancelled, 
+      icon: <CancelIcon sx={{ fontSize: 40 }} />,
+      color: "#d32f2f"
+    },
+  ];
 
   return (
     <Box>
-      {/* Header con rol */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-        <Box>
-          <Typography variant="h4" mb={1}>
-            Dashboard
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" sx={{ fontWeight: "bold", mb: 1 }}>
+          Bienvenido, {user?.name}
+        </Typography>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <RoleBadge />
+          <Typography variant="body2" color="text.secondary">
+            {user?.email}
           </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Typography variant="h6" color="text.secondary">
-              Hola {user.name} 👋
-            </Typography>
-            <RoleBadge />
-          </Box>
-        </Box>
-
-        {/* Botones según permisos */}
-        <Box sx={{ display: "flex", gap: 2 }}>
-          <CanAccess permission="canEditCenter">
-            <Button
-              variant="outlined"
-              startIcon={<SettingsIcon />}
-              onClick={() => navigate("/settings")}
-            >
-              Configuración del Centro
-            </Button>
-          </CanAccess>
-
-          <CanAccess permission="canCreateAppointment">
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => navigate("/appointments/create")}
-            >
-              Nueva Cita
-            </Button>
-          </CanAccess>
-        </Box>
+        </Stack>
       </Box>
 
-      {/* Mensaje informativo según rol */}
-      <CanAccess permission="canViewAllAppointments">
-        <Alert severity="info" sx={{ mb: 3 }}>
-          <strong>Vista de Administrador:</strong> Estás viendo todas las citas del centro.
-        </Alert>
-      </CanAccess>
-
-      <CanAccess
-        permission="canViewAllAppointments"
-        fallback={
-          <Alert severity="info" sx={{ mb: 3 }}>
-            <strong>Vista de Miembro:</strong> Solo puedes ver tus propias citas.
-          </Alert>
-        }
-      />
-
       {/* Estadísticas */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" mb={2}>
-          Resumen
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {statsCards.map((stat, index) => (
+          <Grid item xs={12} sm={6} md={3} key={index}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <Box>
+                    <Typography variant="h4" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                      {stat.value}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {stat.title}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ color: stat.color }}>
+                    {stat.icon}
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Accesos rápidos */}
+      <Typography variant="h5" sx={{ fontWeight: "bold", mb: 2 }}>
+        Accesos Rápidos
+      </Typography>
+
+      <Grid container spacing={2}>
+        {/* Agenda - Todos */}
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ cursor: "pointer", "&:hover": { boxShadow: 6 } }}>
+            <CardContent onClick={() => navigate("/calendar")}>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <CalendarIcon color="primary" sx={{ fontSize: 40 }} />
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                    {user?.role === 'admin' ? 'Ver Agendas' : 'Mi Agenda'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {user?.role === 'admin' 
+                      ? 'Calendario de profesionales' 
+                      : 'Ver mis citas programadas'}
+                  </Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Configuración - Solo Admin */}
+        <CanAccess permission="canEditCenter">
+          <Grid item xs={12} sm={6} md={4}>
+            <Card sx={{ cursor: "pointer", "&:hover": { boxShadow: 6 } }}>
+              <CardContent onClick={() => navigate("/settings")}>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <SettingsIcon color="primary" sx={{ fontSize: 40 }} />
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                      Configuración
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Ajustes del centro
+                    </Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        </CanAccess>
+
+        {/* Servicios/Especialidades - Admin y Member */}
+        <CanAccess permission="canManageServices">
+          <Grid item xs={12} sm={6} md={4}>
+            <Card sx={{ cursor: "pointer", "&:hover": { boxShadow: 6 } }}>
+              <CardContent onClick={() => navigate("/services")}>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <ServicesIcon color="primary" sx={{ fontSize: 40 }} />
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                      Especialidades
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Gestionar servicios
+                    </Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        </CanAccess>
+
+        {/* Profesionales - Solo Admin */}
+        <CanAccess permission="canManageUsers">
+          <Grid item xs={12} sm={6} md={4}>
+            <Card sx={{ cursor: "pointer", "&:hover": { boxShadow: 6 } }}>
+              <CardContent onClick={() => navigate("/professionals")}>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <PeopleIcon color="primary" sx={{ fontSize: 40 }} />
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                      Profesionales
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Gestionar profesionales
+                    </Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        </CanAccess>
+
+        {/* Pacientes - Solo Admin */}
+        <CanAccess permission="canManageUsers">
+          <Grid item xs={12} sm={6} md={4}>
+            <Card sx={{ cursor: "pointer", "&:hover": { boxShadow: 6 } }}>
+              <CardContent onClick={() => navigate("/patients")}>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <PersonAddIcon color="primary" sx={{ fontSize: 40 }} />
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                      Pacientes
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Gestionar pacientes
+                    </Typography>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        </CanAccess>
+      </Grid>
+
+      {/* Información de permisos */}
+      <Box sx={{ mt: 4, p: 2, bgcolor: "#f5f5f5", borderRadius: 2 }}>
+        <Typography variant="body2" color="text.secondary">
+          <strong>Tus permisos:</strong>{" "}
+          {user?.role === "admin" && "Acceso completo al sistema - Gestión de especialidades, profesionales y agendas"}
+          {user?.role === "member" && "Gestión de especialidades y visualización de agenda propia"}
+          {user?.role === "limited" && "Solo visualización de agenda propia"}
         </Typography>
-        <Box sx={{ display: "flex", gap: 4 }}>
-          <Box>
-            <Typography variant="h3" color="primary">
-              {filteredAppointments.length}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {hasPermission("canViewAllAppointments") 
-                ? "Total de citas" 
-                : "Tus citas"}
-            </Typography>
-          </Box>
-
-          <CanAccess permission="canViewAllAppointments">
-            <Box>
-              <Typography variant="h3" color="secondary">
-                {new Set(appointments.map((a: any) => a.professionId)).size}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Profesionales activos
-              </Typography>
-            </Box>
-          </CanAccess>
-        </Box>
-      </Paper>
-
-      {/* Tabla de citas */}
-      {isLoading ? (
-        <Typography>Cargando citas...</Typography>
-      ) : (
-        <>
-          <Typography variant="h6" mb={2}>
-            {hasPermission("canViewAllAppointments") 
-              ? "Todas las citas" 
-              : "Tus citas agendadas"}
-          </Typography>
-
-          {filteredAppointments.length === 0 ? (
-            <Alert severity="info">
-              No hay citas agendadas {hasPermission("canViewAllAppointments") ? "en el centro" : "para ti"}.
-            </Alert>
-          ) : (
-            <AppointmentsTable 
-              appointments={filteredAppointments}
-              canEdit={hasPermission("canEditAppointment")}
-              canCancel={hasPermission("canCancelAppointment")}
-            />
-          )}
-        </>
-      )}
-
-      {/* Mensaje para usuarios limitados */}
-      {user.role === "limited" && (
-        <Alert severity="warning" sx={{ mt: 3 }}>
-          <strong>Cuenta de Solo Lectura:</strong> No puedes realizar cambios en el sistema. 
-          Contacta a un administrador si necesitas más permisos.
-        </Alert>
-      )}
+      </Box>
     </Box>
   );
 }

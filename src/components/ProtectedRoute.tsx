@@ -1,60 +1,65 @@
+import { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
-import { useAuth, PERMISSIONS } from "../contexts/AuthContext";
-import type { Role } from "../contexts/AuthContext";
+import { useAuth } from "../contexts/AuthContext";
+import { Box, CircularProgress } from "@mui/material";
 
 interface ProtectedRouteProps {
-  children: JSX.Element;
-  requiredPermission?: keyof typeof PERMISSIONS.admin;
-  allowedRoles?: Role[];
+  children: ReactNode;
+  allowedRoles?: string[];
+  requiredPermission?: string;
 }
 
 export default function ProtectedRoute({ 
   children, 
-  requiredPermission,
-  allowedRoles 
+  allowedRoles,
+  requiredPermission 
 }: ProtectedRouteProps) {
-  const { user, hasPermission } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
-  // Si no hay usuario, redirigir al login
-  if (!user) {
+  // Mostrar loading mientras se verifica la autenticación
+  if (isLoading) {
+    return (
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '100vh' 
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  // Si no está autenticado, redirigir al login
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // Si se especificaron roles permitidos, verificar
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return (
-      <div style={{ 
-        padding: '40px', 
-        textAlign: 'center',
-        maxWidth: '500px',
-        margin: '100px auto'
-      }}>
-        <h2>⛔ Acceso Denegado</h2>
-        <p>No tienes los permisos necesarios para acceder a esta sección.</p>
-        <p style={{ color: '#666', marginTop: '20px' }}>
-          Tu rol actual: <strong>{user.role}</strong>
-        </p>
-      </div>
-    );
+  // Verificar roles permitidos
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
-  // Si se especificó un permiso requerido, verificar
-  if (requiredPermission && !hasPermission(requiredPermission)) {
-    return (
-      <div style={{ 
-        padding: '40px', 
-        textAlign: 'center',
-        maxWidth: '500px',
-        margin: '100px auto'
-      }}>
-        <h2>⛔ Acceso Denegado</h2>
-        <p>No tienes permiso para realizar esta acción.</p>
-        <p style={{ color: '#666', marginTop: '20px' }}>
-          Permiso requerido: <strong>{requiredPermission}</strong>
-        </p>
-      </div>
-    );
+  // Verificar permisos específicos
+  if (requiredPermission && user) {
+    const hasPermission = checkPermission(user.role, requiredPermission);
+    if (!hasPermission) {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
-  return children;
+  return <>{children}</>;
+}
+
+// Helper para verificar permisos
+function checkPermission(role: string, permission: string): boolean {
+  const permissions: Record<string, string[]> = {
+    admin: ["canEditCenter", "canManageServices", "canManageUsers", "canViewAll"],
+    member: ["canManageServices", "canViewAll"],
+    limited: ["canViewOwn"],
+  };
+
+  return permissions[role]?.includes(permission) || false;
 }
