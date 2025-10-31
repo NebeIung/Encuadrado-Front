@@ -97,4 +97,3 @@ Este proyecto es parte de una prueba técnica.
 ---
 
 ⭐️ Desarrollado como parte de la prueba técnica para Encuadrado
-```
