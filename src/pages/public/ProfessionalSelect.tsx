@@ -1,94 +1,201 @@
 import { useState, useEffect } from "react";
-import { 
-  Card, 
-  CardActionArea, 
-  CardContent, 
-  Typography, 
-  CircularProgress, 
-  Alert,
+import {
   Box,
-  Avatar,
-  Chip,
+  Container,
+  Typography,
+  Card,
+  CardContent,
   Button,
+  Chip,
+  Stack,
+  Divider,
+  Alert,
+  Avatar,
   IconButton,
-  useTheme,
-  Divider
+  CircularProgress,
 } from "@mui/material";
-import { 
-  Phone as PhoneIcon,
-  Email as EmailIcon,
-  MedicalServices as MedicalIcon,
+import {
   ArrowBack as ArrowBackIcon,
   ArrowForward as ArrowForwardIcon,
-  AccessTime as TimeIcon
+  Schedule as ScheduleIcon,
 } from "@mui/icons-material";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { api } from "../../api/apiClient";
+
+const DAY_LABELS: Record<string, string> = {
+  mon: 'Lunes',
+  tue: 'Martes',
+  wed: 'Miércoles',
+  thu: 'Jueves',
+  fri: 'Viernes',
+  sat: 'Sábado',
+  sun: 'Domingo',
+};
+
+const DAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
 interface Professional {
   id: number;
   name: string;
   email: string;
-  phone: string;
+  role: string;
   specialties: Array<{
     id: number;
     name: string;
+    color: string;
+    duration: number;
   }>;
-  schedule?: {
-    [key: string]: { start: string; end: string } | null;
-  };
+  schedule: Record<string, Record<string, any>>;
 }
-
-const DAYS = [
-  { key: "monday", label: "Lunes" },
-  { key: "tuesday", label: "Martes" },
-  { key: "wednesday", label: "Miércoles" },
-  { key: "thursday", label: "Jueves" },
-  { key: "friday", label: "Viernes" },
-  { key: "saturday", label: "Sábado" },
-  { key: "sunday", label: "Domingo" }
-];
 
 export default function ProfessionalSelect() {
   const navigate = useNavigate();
-  const theme = useTheme();
+  const location = useLocation();
+  const { specialty } = location.state || {};
+
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
-  
-  const selectedService = JSON.parse(localStorage.getItem("selectedService") || "{}");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!specialty) {
+      navigate('/public/reservar');
+      return;
+    }
+    
     fetchProfessionals();
-  }, []);
+  }, [specialty]);
 
   const fetchProfessionals = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/professionals");
-      if (!response.ok) throw new Error("Error al cargar profesionales");
+      const response = await api.get('/public/professionals', {
+        params: {
+          specialty_id: specialty.id
+        }
+      });
       
-      const data = await response.json();
+      setProfessionals(response.data);
       
-      // Filtrar profesionales con la especialidad seleccionada
-      const filtered = data.filter((prof: Professional) => 
-        prof.specialties.some(spec => spec.id === selectedService.id)
-      );
-      
-      setProfessionals(filtered);
-    } catch (err: any) {
-      setError(err.message);
+      if (response.data.length === 0) {
+        setError('No hay profesionales disponibles para esta especialidad');
+      }
+    } catch (error) {
+      console.error('Error fetching professionals:', error);
+      setError('Error al cargar los profesionales. Por favor intenta nuevamente.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSelect = (professional: Professional) => {
-    localStorage.setItem("selectedProfessional", JSON.stringify(professional));
-    navigate("/public/select-date");
+  const getScheduleForSpecialty = (professional: Professional) => {
+    if (!professional.schedule || Object.keys(professional.schedule).length === 0) {
+      return null;
+    }
+    
+    // Verificar si el schedule tiene la estructura esperada (días de la semana)
+    const hasWeekDays = Object.keys(professional.schedule).some(key => 
+      ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun', 
+       'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].includes(key)
+    );
+    
+    if (!hasWeekDays) {
+      return null;
+    }
+    
+    return professional.schedule;
   };
 
-  const handleBack = () => {
-    navigate("/public/reservar");
+  const formatSchedule = (schedule: Record<string, any> | null) => {
+    if (!schedule) {
+      return [];
+    }
+
+    // Mapeo para manejar nombres completos y abreviados
+    const dayMapping: Record<string, string> = {
+      'monday': 'mon',
+      'tuesday': 'tue',
+      'wednesday': 'wed',
+      'thursday': 'thu',
+      'friday': 'fri',
+      'saturday': 'sat',
+      'sunday': 'sun',
+      'mon': 'mon',
+      'tue': 'tue',
+      'wed': 'wed',
+      'thu': 'thu',
+      'fri': 'fri',
+      'sat': 'sat',
+      'sun': 'sun',
+    };
+
+    const enabledDays = Object.entries(schedule)
+      .filter(([day, daySchedule]) => {
+        // Normalizar el nombre del día
+        const normalizedDay = dayMapping[day.toLowerCase()];
+        const isValidDay = normalizedDay && DAY_ORDER.includes(normalizedDay);
+        const hasSchedule = daySchedule && typeof daySchedule === 'object';
+        const isEnabled = daySchedule?.enabled === true;
+        
+        return isValidDay && hasSchedule && isEnabled;
+      })
+      .map(([day, daySchedule]) => {
+        // Normalizar el nombre del día para el orden
+        const normalizedDay = dayMapping[day.toLowerCase()];
+        
+        return {
+          day: normalizedDay,
+          label: DAY_LABELS[normalizedDay],
+          start: daySchedule.start,
+          end: daySchedule.end,
+          lunch_start: daySchedule.lunch_start,
+          lunch_end: daySchedule.lunch_end,
+        };
+      })
+      .sort((a, b) => {
+        return DAY_ORDER.indexOf(a.day) - DAY_ORDER.indexOf(b.day);
+      });
+
+    return enabledDays;
+  };
+
+  const formatTimeRange = (dayInfo: any) => {
+    const hasLunch = dayInfo.lunch_start && dayInfo.lunch_end;
+    
+    if (hasLunch) {
+      return `${dayInfo.start} - ${dayInfo.lunch_start} y ${dayInfo.lunch_end} - ${dayInfo.end}`;
+    }
+    
+    return `${dayInfo.start} - ${dayInfo.end}`;
+  };
+
+  const handleSelectProfessional = (professional: Professional) => {
+    const scheduleForSpecialty = getScheduleForSpecialty(professional);
+
+    if (!scheduleForSpecialty) {
+      setError(`El profesional ${professional.name} no tiene horarios configurados para ${specialty.name}`);
+      return;
+    }
+
+    navigate('/centro-de-salud-cuad/public/select-date', {
+      state: {
+        specialty,
+        professional: {
+          id: professional.id,
+          name: professional.name,
+          schedule: scheduleForSpecialty,
+        },
+      },
+    });
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map(n => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   const handlePrev = () => {
@@ -103,26 +210,16 @@ export default function ProfessionalSelect() {
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map(n => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   const getVisibleCards = () => {
     if (professionals.length === 0) return [];
-    
-    // Si hay 1 o 2 profesionales, mostrar solo los disponibles sin repetir
+
     if (professionals.length <= 2) {
       return professionals.map((prof, idx) => ({
         professional: prof,
         position: idx - currentIndex
       }));
     }
-    
+
     const visible = [];
     for (let i = -1; i <= 1; i++) {
       const index = currentIndex + i;
@@ -135,45 +232,38 @@ export default function ProfessionalSelect() {
 
   if (loading) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", mt: 10 }}>
-        <CircularProgress />
-      </Box>
+      <Container maxWidth="md" sx={{ py: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <Stack spacing={2} alignItems="center">
+          <CircularProgress size={60} />
+          <Typography variant="h6">Cargando profesionales...</Typography>
+        </Stack>
+      </Container>
     );
   }
 
-  if (error) {
+  if (error || professionals.length === 0) {
     return (
-      <Box>
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-        <Box sx={{ display: "flex", justifyContent: "center" }}>
-          <Button variant="outlined" onClick={handleBack}>
-            Volver
-          </Button>
-        </Box>
-      </Box>
-    );
-  }
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        <Button
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate('/public/reservar')}
+          sx={{ mb: 3 }}
+        >
+          Volver
+        </Button>
 
-  if (professionals.length === 0) {
-    return (
-      <Box>
-        <Typography variant="h4" mb={1}>
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 1 }}>
           Selecciona un Profesional
         </Typography>
-        <Typography variant="body1" color="text.secondary" mb={3}>
-          Para el servicio: <strong>{selectedService.name}</strong>
-        </Typography>
+
         <Alert severity="info" sx={{ mb: 3 }}>
-          No hay profesionales disponibles para esta especialidad en este momento.
+          Especialidad seleccionada: <strong>{specialty?.name}</strong>
         </Alert>
-        <Box sx={{ display: "flex", justifyContent: "center" }}>
-          <Button variant="outlined" onClick={handleBack} size="large">
-            Volver
-          </Button>
-        </Box>
-      </Box>
+
+        <Alert severity="warning">
+          {error || 'No hay profesionales disponibles para esta especialidad en este momento.'}
+        </Alert>
+      </Container>
     );
   }
 
@@ -182,32 +272,32 @@ export default function ProfessionalSelect() {
   const canGoNext = currentIndex < professionals.length - 1;
 
   return (
-    <Box>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
       <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
-        <Button 
-          variant="outlined" 
-          onClick={handleBack}
+        <Button
+          variant="outlined"
+          onClick={() => navigate('/public/reservar')}
           startIcon={<ArrowBackIcon />}
           sx={{ mr: 2 }}
         >
           Volver
         </Button>
         <Box sx={{ flex: 1, textAlign: "center" }}>
-          <Typography variant="h4" mb={0.5}>
+          <Typography variant="h4" mb={0.5} sx={{ fontWeight: 'bold' }}>
             Selecciona un Profesional
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Para el servicio: <strong>{selectedService.name}</strong>
+            Para el servicio: <strong>{specialty?.name}</strong> ({specialty?.duration} minutos)
           </Typography>
         </Box>
       </Box>
 
-      <Box sx={{ 
-        position: "relative", 
-        display: "flex", 
-        alignItems: "center", 
+      <Box sx={{
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
         justifyContent: "center",
-        minHeight: 550,
+        minHeight: 600,
         py: 4
       }}>
         {/* Botón izquierdo */}
@@ -230,173 +320,200 @@ export default function ProfessionalSelect() {
         )}
 
         {/* Contenedor del carrusel */}
-        <Box sx={{ 
-          display: "flex", 
+        <Box sx={{
+          display: "flex",
           alignItems: "center",
           justifyContent: "center",
           gap: 2,
           width: "100%",
-          maxWidth: 1200,
+          maxWidth: 1400,
           px: 8
         }}>
           {visibleCards.map(({ professional, position }) => {
             const isCurrent = position === 0;
-            const scale = isCurrent ? 1 : 0.8;
+            const scale = isCurrent ? 1 : 0.85;
             const opacity = isCurrent ? 1 : 0.5;
             const zIndex = isCurrent ? 10 : 1;
+            const scheduleForSpecialty = getScheduleForSpecialty(professional);
+            const formattedSchedule = formatSchedule(scheduleForSpecialty);
+            const hasValidSchedule = scheduleForSpecialty && formattedSchedule.length > 0;
 
             return (
-              <Card 
+              <Card
                 key={professional.id}
-                sx={{ 
-                  width: isCurrent ? 450 : 350,
-                  height: 520,
+                sx={{
+                  width: isCurrent ? 500 : 400,
+                  height: 560,
                   transition: "all 0.4s ease-in-out",
                   transform: `scale(${scale})`,
                   opacity,
                   zIndex,
-                  border: isCurrent ? `3px solid ${theme.palette.primary.main}` : "none",
+                  border: isCurrent ? "3px solid primary.main" : "none",
                   boxShadow: isCurrent ? 6 : 2,
-                  cursor: isCurrent ? "pointer" : "default",
-                  pointerEvents: isCurrent ? "auto" : "none"
+                  cursor: isCurrent && hasValidSchedule ? "pointer" : "default",
+                  pointerEvents: isCurrent ? "auto" : "none",
                 }}
+                onClick={() => isCurrent && hasValidSchedule && handleSelectProfessional(professional)}
               >
-                <CardActionArea 
-                  onClick={() => isCurrent && handleSelect(professional)}
-                  sx={{ height: "100%", p: 3 }}
-                  disabled={!isCurrent}
-                >
-                  <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                    {/* Avatar y Nombre */}
-                    <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-                      <Avatar 
+                <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column", p: 2.5 }}>
+                  {/* Avatar y Nombre */}
+                  <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+                    <Avatar
+                      sx={{
+                        width: isCurrent ? 56 : 48,
+                        height: isCurrent ? 56 : 48,
+                        bgcolor: 'primary.main',
+                        fontSize: isCurrent ? "1.25rem" : "1rem",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {getInitials(professional.name)}
+                    </Avatar>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography
+                        variant={isCurrent ? "h6" : "subtitle1"}
                         sx={{ 
-                          width: isCurrent ? 70 : 55, 
-                          height: isCurrent ? 70 : 55, 
-                          bgcolor: "primary.main",
-                          fontSize: isCurrent ? "1.3rem" : "1rem",
                           fontWeight: "bold",
-                          mr: 2
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
                         }}
                       >
-                        {getInitials(professional.name)}
-                      </Avatar>
-                      <Box>
-                        <Typography 
-                          variant={isCurrent ? "h5" : "h6"} 
-                          sx={{ fontWeight: "bold" }}
-                        >
-                          {professional.name}
-                        </Typography>
-                      </Box>
+                        {professional.name}
+                      </Typography>
+                      <Typography 
+                        variant="caption" 
+                        color="text.secondary"
+                        sx={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          display: 'block'
+                        }}
+                      >
+                        {professional.email}
+                      </Typography>
                     </Box>
+                  </Stack>
 
-                    {/* Información de Contacto */}
-                    <Box sx={{ mb: 2 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                        <EmailIcon fontSize="small" color="action" />
-                        <Typography variant="body2" color="text.secondary" noWrap>
-                          {professional.email}
+                  <Divider sx={{ my: 1 }} />
+
+                  {/* Horarios de atención */}
+                  {isCurrent && (
+                    <Box sx={{ flex: 1, mb: 1.5, overflow: 'hidden' }}>
+                      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
+                        <ScheduleIcon sx={{ fontSize: 18 }} color="action" />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', fontSize: '0.875rem' }}>
+                          Horarios para {specialty.name}
                         </Typography>
-                      </Box>
+                      </Stack>
 
-                      {professional.phone && (
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <PhoneIcon fontSize="small" color="action" />
-                          <Typography variant="body2" color="text.secondary">
-                            {professional.phone}
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
-
-                    {/* Especialidades */}
-                    <Box sx={{ mb: 2 }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                        <MedicalIcon fontSize="small" color="action" />
-                        <Typography variant="caption" color="text.secondary">
-                          Especialidades
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                        {professional.specialties.map((spec) => (
-                          <Chip
-                            key={spec.id}
-                            label={spec.name}
-                            size="small"
-                            color="secondary"
-                            sx={{ fontSize: "0.7rem" }}
-                          />
-                        ))}
-                      </Box>
-                    </Box>
-
-                    <Divider sx={{ my: 1.5 }} />
-
-                    {/* Horarios - Solo en tarjeta activa */}
-                    {isCurrent && (
-                      <Box sx={{ flex: 1 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
-                          <TimeIcon fontSize="small" color="action" />
-                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: "bold" }}>
-                            Horarios de atención
-                          </Typography>
-                        </Box>
-                        <Box 
-                          sx={{ 
-                            display: "grid",
-                            gridTemplateColumns: "repeat(2, 1fr)",
-                            gap: 0.5,
-                            fontSize: "0.75rem"
+                      {hasValidSchedule ? (
+                        <Box
+                          sx={{
+                            maxHeight: 240,
+                            overflowY: 'auto',
+                            pr: 0.5,
+                            '&::-webkit-scrollbar': {
+                              width: '4px',
+                            },
+                            '&::-webkit-scrollbar-thumb': {
+                              backgroundColor: 'rgba(0,0,0,.2)',
+                              borderRadius: '2px',
+                            },
                           }}
                         >
-                          {DAYS.map(day => {
-                            const schedule = professional.schedule?.[day.key];
-                            return (
-                              <Box 
-                                key={day.key}
-                                sx={{ 
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                  py: 0.25,
-                                  px: 0.5,
-                                  bgcolor: schedule ? "action.hover" : "transparent",
-                                  borderRadius: 0.5
-                                }}
-                              >
-                                <Typography variant="caption" sx={{ fontWeight: "medium", minWidth: 50 }}>
-                                  {day.label.slice(0, 3)}:
+                          {formattedSchedule.map((dayInfo: any) => (
+                            <Box
+                              key={dayInfo.day}
+                              sx={{
+                                mb: 0.75,
+                                p: 1,
+                                bgcolor: 'action.hover',
+                                borderRadius: 0.5,
+                                borderLeft: "3px solid primary.main",
+                              }}
+                            >
+                              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    fontWeight: 'bold',
+                                    color: 'text.primary',
+                                    fontSize: '0.813rem',
+                                    minWidth: '70px',
+                                  }}
+                                >
+                                  {dayInfo.label}
                                 </Typography>
                                 <Typography 
-                                  variant="caption" 
-                                  color={schedule ? "text.primary" : "text.disabled"}
-                                  sx={{ fontSize: "0.7rem" }}
+                                  variant="body2" 
+                                  color="text.secondary"
+                                  sx={{ 
+                                    fontSize: '0.813rem',
+                                    textAlign: 'right',
+                                    flex: 1,
+                                  }}
                                 >
-                                  {schedule 
-                                    ? `${schedule.start}-${schedule.end}`
-                                    : "—"
-                                  }
+                                  {formatTimeRange(dayInfo)}
                                 </Typography>
-                              </Box>
-                            );
-                          })}
+                              </Stack>
+                            </Box>
+                          ))}
                         </Box>
-                      </Box>
-                    )}
+                      ) : (
+                        <Alert severity="warning" sx={{ py: 0.5, fontSize: '0.813rem' }}>
+                          Sin horario configurado
+                        </Alert>
+                      )}
+                    </Box>
+                  )}
 
-                    {isCurrent && (
-                      <Box sx={{ mt: 2, textAlign: "center" }}>
-                        <Chip 
-                          label="Seleccionar profesional" 
-                          color="primary" 
-                          size="medium"
-                          sx={{ fontWeight: "bold", fontSize: "0.9rem", py: 1.5 }}
+                  <Divider sx={{ my: 1 }} />
+
+                  {/* Especialidades del profesional */}
+                  <Box sx={{ mb: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                      Todas las especialidades:
+                    </Typography>
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                      {professional.specialties.map((spec) => (
+                        <Chip
+                          key={spec.id}
+                          label={spec.name}
+                          size="small"
+                          sx={{
+                            height: 22,
+                            fontSize: '0.75rem',
+                            bgcolor: spec.name === specialty.name ? 'primary.main' : 'default',
+                            color: spec.name === specialty.name ? 'white' : 'inherit',
+                            fontWeight: spec.name === specialty.name ? 'bold' : 'normal',
+                          }}
                         />
-                      </Box>
-                    )}
-                  </CardContent>
-                </CardActionArea>
+                      ))}
+                    </Stack>
+                  </Box>
+
+                  {/* Botón de selección */}
+                  {isCurrent && (
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      size="medium"
+                      endIcon={<ArrowForwardIcon />}
+                      disabled={!hasValidSchedule}
+                      sx={{
+                        mt: 'auto',
+                        '&:disabled': {
+                          bgcolor: 'action.disabledBackground',
+                          color: 'action.disabled',
+                        },
+                      }}
+                    >
+                      {hasValidSchedule ? 'Seleccionar' : 'Sin horarios'}
+                    </Button>
+                  )}
+                </CardContent>
               </Card>
             );
           })}
@@ -433,7 +550,7 @@ export default function ProfessionalSelect() {
                 width: currentIndex === index ? 32 : 8,
                 height: 8,
                 borderRadius: 4,
-                bgcolor: currentIndex === index ? "primary.main" : "action.disabled",
+                bgcolor: currentIndex === index ? 'primary.main' : 'action.disabled',
                 cursor: "pointer",
                 transition: "all 0.3s ease"
               }}
@@ -441,6 +558,6 @@ export default function ProfessionalSelect() {
           ))}
         </Box>
       )}
-    </Box>
+    </Container>
   );
 }

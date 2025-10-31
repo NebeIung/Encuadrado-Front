@@ -1,68 +1,167 @@
-import { Box, Typography, Paper, Grid, Divider } from "@mui/material";
+import { useState, useEffect } from "react";
+import { Box, Typography, Paper, Grid, CircularProgress, Alert } from "@mui/material";
 import { 
   LocalHospital as HospitalIcon,
   VerifiedUser as VerifiedIcon,
   Groups as GroupsIcon,
-  FavoriteBorder as HeartIcon
+  FavoriteBorder as HeartIcon,
+  Business as BusinessIcon
 } from "@mui/icons-material";
+import { api } from "../../api/apiClient";
+
+interface CenterInfo {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  description: string;
+  vision: string;
+  logo_url?: string;
+}
 
 export default function Nosotros() {
+  const [centerInfo, setCenterInfo] = useState<CenterInfo>({
+    name: "Centro de Salud",
+    address: "",
+    phone: "",
+    email: "",
+    description: "",
+    vision: "",
+    logo_url: ""
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    fetchCenterInfo();
+  }, []);
+
+  const fetchCenterInfo = async () => {
+    try {
+      const response = await api.get('/public/center-info');
+      setCenterInfo(response.data);
+    } catch (err: any) {
+      console.error("Error al cargar información del centro:", err);
+      setError("Error al cargar la información del centro");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+        <CircularProgress size={60} />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert severity="error" sx={{ mt: 3 }}>
+        {error}
+      </Alert>
+    );
+  }
+
+  const hasLogo = centerInfo.logo_url && !imageError;
+
   return (
     <Box>
       {/* Header */}
       <Box sx={{ textAlign: "center", mb: 6 }}>
         <Typography variant="h3" gutterBottom sx={{ fontWeight: "bold", color: "primary.main" }}>
-          Centro de Salud Cuad
+          {centerInfo.name}
         </Typography>
         <Typography variant="h6" color="text.secondary">
           Tu salud es nuestra prioridad
         </Typography>
       </Box>
 
-      {/* Contenido Principal */}
-      <Paper sx={{ p: 4, mb: 4 }}>
-        <Typography variant="h5" gutterBottom sx={{ color: "primary.main", mb: 3 }}>
-          Quiénes Somos
-        </Typography>
-        
-        <Typography paragraph>
-          El Centro de Salud Cuad nace con la misión de brindar atención médica integral de calidad, 
-          centrada en el bienestar de nuestros pacientes. Desde nuestros inicios, nos hemos comprometido 
-          a ofrecer servicios de salud accesibles, profesionales y humanizados.
-        </Typography>
+      {/* Grid principal */}
+      <Grid container spacing={4} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={4}>
+          <Box
+            sx={{
+              width: "100%",
+              aspectRatio: "1/1",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              bgcolor: hasLogo ? "transparent" : "grey.100",
+              borderRadius: 2,
+              overflow: "hidden",
+              border: "1px solid",
+              borderColor: "divider"
+            }}
+          >
+            {hasLogo ? (
+              <img
+                src={centerInfo.logo_url}
+                alt={`Logo de ${centerInfo.name}`}
+                onError={() => setImageError(true)}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                  padding: "20px"
+                }}
+              />
+            ) : (
+              <BusinessIcon
+                sx={{
+                  fontSize: 120,
+                  color: "primary.main",
+                  opacity: 0.3
+                }}
+              />
+            )}
+          </Box>
+        </Grid>
 
-        <Typography paragraph>
-          Nuestro equipo está conformado por profesionales altamente calificados en diversas 
-          especialidades médicas, quienes trabajan en conjunto para proporcionar un enfoque holístico 
-          del cuidado de la salud. Creemos firmemente que cada paciente es único y merece un tratamiento 
-          personalizado que considere sus necesidades específicas.
-        </Typography>
+        <Grid item xs={12} md={8}>
+          <Grid container spacing={3}>
+            {/* Quiénes Somos */}
+            <Grid item xs={12}>
+              <Paper sx={{ p: 4 }}>
+                <Typography variant="h5" gutterBottom sx={{ color: "primary.main", mb: 3 }}>
+                  Quiénes Somos
+                </Typography>
+                
+                {centerInfo.description ? (
+                  <Typography paragraph sx={{ whiteSpace: "pre-line", textAlign: "justify" }}>
+                    {centerInfo.description}
+                  </Typography>
+                ) : (
+                  <Typography paragraph color="text.secondary" fontStyle="italic">
+                    La información sobre el centro aún no ha sido configurada.
+                  </Typography>
+                )}
+              </Paper>
+            </Grid>
 
-        <Typography paragraph>
-          En Cuad, combinamos la experiencia clínica con tecnología moderna para garantizar diagnósticos 
-          precisos y tratamientos efectivos. Nuestras instalaciones están diseñadas para crear un ambiente 
-          cómodo y seguro, donde nuestros pacientes puedan sentirse en confianza durante su atención médica.
-        </Typography>
+            {/* Nuestra Visión */}
+            <Grid item xs={12}>
+              <Paper sx={{ p: 4 }}>
+                <Typography variant="h5" gutterBottom sx={{ color: "primary.main", mb: 3 }}>
+                  Nuestra Visión
+                </Typography>
 
-        <Divider sx={{ my: 4 }} />
-
-        <Typography variant="h5" gutterBottom sx={{ color: "primary.main", mb: 3 }}>
-          Nuestra Visión
-        </Typography>
-
-        <Typography paragraph>
-          Aspiramos a ser el centro de salud de referencia en la comunidad, reconocidos por nuestra 
-          excelencia en el servicio, la calidez humana de nuestro equipo y nuestro compromiso constante 
-          con la innovación en salud. Trabajamos cada día para mejorar la calidad de vida de nuestros 
-          pacientes a través de una atención médica integral y preventiva.
-        </Typography>
-
-        <Typography paragraph>
-          Queremos construir relaciones duraderas con nuestros pacientes, basadas en la confianza mutua 
-          y el respeto. Nos esforzamos por ser más que un centro médico: queremos ser aliados en el 
-          cuidado de tu salud y la de tu familia.
-        </Typography>
-      </Paper>
+                {centerInfo.vision ? (
+                  <Typography paragraph sx={{ whiteSpace: "pre-line", textAlign: "justify" }}>
+                    {centerInfo.vision}
+                  </Typography>
+                ) : (
+                  <Typography paragraph color="text.secondary" fontStyle="italic">
+                    La visión del centro aún no ha sido configurada.
+                  </Typography>
+                )}
+              </Paper>
+            </Grid>
+          </Grid>
+        </Grid>
+      </Grid>
 
       {/* Valores */}
       <Typography variant="h5" gutterBottom sx={{ color: "primary.main", mb: 3, textAlign: "center" }}>
@@ -152,23 +251,28 @@ export default function Nosotros() {
       </Grid>
 
       {/* Información de Contacto */}
-      <Paper sx={{ p: 4, bgcolor: "grey.50" }}>
-        <Typography variant="h6" gutterBottom sx={{ color: "primary.main" }}>
-          Visítanos
-        </Typography>
-        <Typography paragraph>
-          <strong>Dirección:</strong> Av. Providencia 1234, Santiago, Chile
-        </Typography>
-        <Typography paragraph>
-          <strong>Teléfono:</strong> +56 9 1234 5678
-        </Typography>
-        <Typography paragraph>
-          <strong>Email:</strong> contacto@centrocuad.cl
-        </Typography>
-        <Typography paragraph>
-          <strong>Horario de Atención:</strong> Lunes a Viernes de 09:00 a 18:00 hrs
-        </Typography>
-      </Paper>
+      {(centerInfo.address || centerInfo.phone || centerInfo.email) && (
+        <Paper sx={{ p: 4, bgcolor: "grey.50" }}>
+          <Typography variant="h6" gutterBottom sx={{ color: "primary.main" }}>
+            Visítanos
+          </Typography>
+          {centerInfo.address && (
+            <Typography paragraph>
+              <strong>Dirección:</strong> {centerInfo.address}
+            </Typography>
+          )}
+          {centerInfo.phone && (
+            <Typography paragraph>
+              <strong>Teléfono:</strong> {centerInfo.phone}
+            </Typography>
+          )}
+          {centerInfo.email && (
+            <Typography paragraph>
+              <strong>Email:</strong> {centerInfo.email}
+            </Typography>
+          )}
+        </Paper>
+      )}
     </Box>
   );
 }

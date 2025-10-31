@@ -22,11 +22,10 @@ export default function Login() {
     setError("");
 
     try {
-      // Llamada al backend - CORREGIDO: /api/login
       const response = await fetch("http://localhost:5000/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (!response.ok) {
@@ -35,9 +34,8 @@ export default function Login() {
       }
 
       const userData = await response.json();
-      
-      // Login usando el contexto
       login({
+        id: userData.id,
         email: userData.email,
         name: userData.name,
         role: userData.role,
@@ -45,9 +43,9 @@ export default function Login() {
 
       // Redirigir según el rol
       if (userData.role === "admin" || userData.role === "member" || userData.role === "limited") {
-        navigate("/dashboard");
+        navigate("centro-de-salud-cuad/dashboard");
       } else {
-        navigate("/patient/dashboard");
+        navigate("centro-de-salud-cuad/patient/dashboard");
       }
     } catch (err: any) {
       setError(err.message || "Error al iniciar sesión");
@@ -58,7 +56,6 @@ export default function Login() {
 
   return (
     <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      {/* Logo superior izquierdo */}
       <Box 
         sx={{ 
           position: "absolute", 
@@ -67,7 +64,7 @@ export default function Login() {
           cursor: "pointer",
           zIndex: 10
         }}
-        onClick={() => navigate("/public")}
+        onClick={() => navigate("centro-de-salud-cuad/public")}
       >
         <img 
           src="../public/cuad.svg" 
@@ -76,9 +73,7 @@ export default function Login() {
         />
       </Box>
 
-      {/* Contenedor principal dividido */}
       <Box sx={{ display: "flex", flex: 1, minHeight: "100vh" }}>
-        {/* Mitad izquierda - Logo grande centrado */}
         <Box 
           sx={{ 
             flex: 1, 
@@ -99,7 +94,6 @@ export default function Login() {
           />
         </Box>
 
-        {/* Mitad derecha - Formulario de login */}
         <Box 
           sx={{ 
             flex: 1, 
@@ -119,9 +113,8 @@ export default function Login() {
               position: "relative"
             }}
           >
-            {/* Botón volver arriba a la izquierda de la tarjeta */}
             <IconButton
-              onClick={() => navigate("/public")}
+              onClick={() => navigate("centro-de-salud-cuad/public")}
               sx={{
                 position: "absolute",
                 top: 16,
@@ -191,28 +184,25 @@ export default function Login() {
                   Usuarios de prueba:
                 </Typography>
                 <Typography variant="caption" display="block">
-                  • admin@centro.com (Administrador)
+                  • admin@cuad.cl (Admin)
                 </Typography>
                 <Typography variant="caption" display="block">
-                  • juan@centro.com (Miembro)
+                  • juan@cuad.cl (Member)
                 </Typography>
                 <Typography variant="caption" display="block">
-                  • ana@centro.com (Solo Lectura)
+                  • ana@cuad.cl (Member)
+                </Typography>
+                <Typography variant="caption" display="block">
+                  • laura@cuad.cl (Member)
+                </Typography>
+                <Typography variant="caption" display="block">
+                  • carlos@cuad.cl (Limited)
                 </Typography>
                 <Typography variant="caption" display="block" sx={{ mt: 1 }}>
                   Contraseña: <strong>1234</strong>
                 </Typography>
               </Box>
 
-              <Typography textAlign="center" mt={3}>
-                ¿No tienes cuenta?
-                <Link 
-                  sx={{ ml: 1, cursor: "pointer", fontWeight: "medium" }} 
-                  onClick={() => navigate("/register")}
-                >
-                  Regístrate
-                </Link>
-              </Typography>
             </CardContent>
           </Card>
         </Box>

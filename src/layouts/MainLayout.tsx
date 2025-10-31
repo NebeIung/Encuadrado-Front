@@ -27,6 +27,7 @@ import {
   CalendarMonth as CalendarIcon,
   People as PeopleIcon,
   PersonAdd as PersonAddIcon,
+  Assignment as AssignmentIcon,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth, RoleBadge, CanAccess } from "../contexts/AuthContext";
@@ -57,48 +58,55 @@ export default function MainLayout({ children }: MainLayoutProps) {
   };
 
   const handleLogout = () => {
+    handleMenuClose();
     logout();
-    navigate("/login");
+    navigate("/centro-de-salud-cuad/login", { replace: true });
   };
 
   const menuItems = [
     {
       text: "Dashboard",
       icon: <DashboardIcon />,
-      path: "/dashboard",
+      path: "/centro-de-salud-cuad/private/dashboard",
+      show: true,
+    },
+    {
+      text: "Gestión de Citas",
+      icon: <AssignmentIcon />,
+      path: "/centro-de-salud-cuad/private/appointments",
       show: true,
     },
     {
       text: "Agenda",
       icon: <CalendarIcon />,
-      path: "/calendar",
+      path: "/centro-de-salud-cuad/private/calendar",
       show: true,
     },
     {
       text: "Profesionales",
       icon: <PeopleIcon />,
-      path: "/professionals",
+      path: "/centro-de-salud-cuad/private/professionals",
       show: true,
       permission: "canManageUsers",
     },
     {
       text: "Pacientes",
       icon: <PersonAddIcon />,
-      path: "/patients",
+      path: "/centro-de-salud-cuad/private/patients",
       show: true,
       permission: "canManageUsers",
     },
     {
       text: "Especialidades",
       icon: <ServicesIcon />,
-      path: "/services",
+      path: "/centro-de-salud-cuad/private/services",
       show: true,
       permission: "canManageServices",
     },
     {
       text: "Configuración",
       icon: <SettingsIcon />,
-      path: "/settings",
+      path: "/centro-de-salud-cuad/private/settings",
       show: true,
       permission: "canEditCenter",
     },
@@ -108,10 +116,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
     <Box>
       <Toolbar sx={{ justifyContent: "center", py: 2 }}>
         <img 
-          src="../public/cuad.svg" 
+          src="../../public/cuad.svg" 
           alt="Logo" 
           style={{ height: 40, cursor: "pointer" }}
-          onClick={() => navigate("/dashboard")}
+          onClick={() => navigate("/centro-de-salud-cuad/private/dashboard")}
         />
       </Toolbar>
       <Divider />
@@ -253,12 +261,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
           </Typography>
         </Box>
         <Divider />
-        <MenuItem onClick={handleMenuClose}>
-          <ListItemIcon>
-            <PersonIcon fontSize="small" />
-          </ListItemIcon>
-          Perfil
-        </MenuItem>
         <MenuItem onClick={handleLogout}>
           <ListItemIcon>
             <LogoutIcon fontSize="small" />

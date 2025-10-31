@@ -13,30 +13,28 @@ export default function PublicLayout() {
             src="/Cuad.svg"
             alt="Cuad"
             sx={{ height: 48, cursor: "pointer" }}
-            onClick={() => navigate("/public")}
+            onClick={() => navigate("/centro-de-salud-cuad/public")}
           />
 
           <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-            <Button color="inherit" onClick={() => navigate("/public/reservar")}>
+            <Button variant="contained"
+              color="primary" onClick={() => navigate("reservar")}>
               Reservar hora
             </Button>
-            <Button color="inherit" onClick={() => navigate("/public/especialidades")}>
+            <Button color="inherit" onClick={() => navigate("especialidades")}>
               Especialidades
             </Button>
-            <Button color="inherit" onClick={() => navigate("/public/profesionales")}>
+            <Button color="inherit" onClick={() => navigate("profesionales")}>
               Profesionales
             </Button>
-            <Button color="inherit" onClick={() => navigate("/public/nosotros")}>
+            <Button color="inherit" onClick={() => navigate("nosotros")}>
               Nosotros
-            </Button>
-            <Button color="inherit" onClick={() => navigate("/public/terminos")}>
-              Términos y Condiciones
             </Button>
 
             <Button
               variant="contained"
               color="primary"
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/centro-de-salud-cuad/login")}
               sx={{ ml: 2, fontWeight: "bold" }}
             >
               Iniciar Sesión

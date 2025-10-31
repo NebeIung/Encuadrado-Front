@@ -19,7 +19,7 @@ export default function Navbar() {
         {user ? (
           <Button color="inherit" onClick={handleLogout}>Salir</Button>
         ) : (
-          <Button color="inherit" onClick={() => navigate("/login")}>Login</Button>
+          <Button color="inherit" onClick={() => navigate("/centro-de-salud-cuad/login")}>Login</Button>
         )}
       </Toolbar>
     </AppBar>

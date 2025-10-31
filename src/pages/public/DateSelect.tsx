@@ -1,280 +1,406 @@
 import { useState, useEffect } from "react";
-import { 
-  Grid, 
-  Typography, 
-  Button, 
-  Chip, 
-  Paper, 
-  Box, 
+import {
+  Box,
+  Typography,
+  Button,
+  Stack,
+  Alert,
+  Paper,
+  Grid,
+  Divider,
   CircularProgress,
-  Alert 
 } from "@mui/material";
-import { ArrowBack as ArrowBackIcon } from "@mui/icons-material";
-import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
+import {
+  ArrowBack as ArrowBackIcon,
+  ArrowForward as ArrowForwardIcon,
+  CalendarMonth as CalendarIcon,
+  Schedule as ScheduleIcon,
+  Info as InfoIcon,
+  Warning as WarningIcon,
+  CheckCircle as CheckCircleIcon,
+} from "@mui/icons-material";
+import { LocalizationProvider, DateCalendar } from "@mui/x-date-pickers";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs, { Dayjs } from "dayjs";
-import { useNavigate } from "react-router-dom";
+import "dayjs/locale/es";
+import { useNavigate, useLocation } from "react-router-dom";
+import { api } from "../../api/apiClient";
+
+dayjs.locale("es");
+
+interface TimeSlot {
+  time: string;
+  available: boolean;
+}
 
 export default function DateSelect() {
   const navigate = useNavigate();
-  const selectedService = JSON.parse(localStorage.getItem("selectedService") || "{}");
-  const selectedProfessionalStr = localStorage.getItem("selectedProfessional");
-  const selectedProfessional = selectedProfessionalStr ? JSON.parse(selectedProfessionalStr) : null;
+  const location = useLocation();
+  const { specialty, professional } = location.state || {};
 
-  const [selectedDate, setSelectedDate] = useState<Dayjs | null>(dayjs());
-  const [availableHours, setAvailableHours] = useState<string[]>([]);
-  const [bookedHours, setBookedHours] = useState<string[]>([]);
-  const [selectedHour, setSelectedHour] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [loadingDays, setLoadingDays] = useState(true);
+  const [availableDates, setAvailableDates] = useState<Dayjs[]>([]);
 
-  // Traer horas disponibles desde backend
   useEffect(() => {
-    if (!selectedDate) return;
-    
-    fetchAvailableHours();
+    if (!specialty || !professional) {
+      navigate("/public/reservar");
+      return;
+    }
+
+    loadAvailableDays();
+  }, []);
+
+  useEffect(() => {
+    if (selectedDate) {
+      fetchAvailableSlots(selectedDate);
+    } else {
+      setAvailableSlots([]);
+      setSelectedTime(null);
+    }
   }, [selectedDate]);
 
-  const fetchAvailableHours = async () => {
-    if (!selectedDate) return;
+  const loadAvailableDays = async () => {
+    if (!professional || !specialty) return;
     
-    setLoading(true);
-    setError("");
-    setSelectedHour(null);
-
+    setLoadingDays(true);
     try {
-      const dateStr = selectedDate.format("YYYY-MM-DD");
+      const response = await api.get("/available-days", {
+        params: {
+          professional_id: professional.id,
+          specialty_id: specialty.id,
+        },
+      });
+
+      const daysData = response.data.available_days || response.data;
       
-      // Si hay profesional seleccionado, usar su ID, sino buscar cualquiera
-      const professionalId = selectedProfessional?.id || "";
+      const dates = daysData.map((day: any) => {
+        const dateStr = typeof day === 'string' ? day : day.date;
+        return dayjs(dateStr);
+      });
       
-      const url = `http://localhost:5000/api/available-hours?date=${dateStr}&professionalId=${professionalId}&serviceId=${selectedService.id}`;
-      
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error("Error al cargar horarios disponibles");
-      }
-      
-      const data = await response.json();
-      
-      // El backend ahora debería devolver un objeto con available y booked
-      // Si devuelve un array simple, asumimos que son todas disponibles
-      if (Array.isArray(data)) {
-        setAvailableHours(data);
-        setBookedHours([]);
-      } else {
-        setAvailableHours(data.available || []);
-        setBookedHours(data.booked || []);
-      }
-    } catch (err: any) {
-      setError(err.message);
-      setAvailableHours([]);
-      setBookedHours([]);
+      setAvailableDates(dates);
+    } catch (error) {
+      console.error("Error loading available days:", error);
+      setAvailableDates([]);
     } finally {
-      setLoading(false);
+      setLoadingDays(false);
     }
+  };
+
+  const fetchAvailableSlots = async (date: Dayjs) => {
+    setLoadingSlots(true);
+    setSelectedTime(null);
+    setAvailableSlots([]);
+    
+    try {
+      const response = await api.get("/available-slots", {
+        params: {
+          professional_id: professional.id,
+          specialty_id: specialty.id,
+          date: date.format("YYYY-MM-DD"),
+        },
+      });
+
+      const slotsData = response.data.available_slots || response.data;
+
+      const slots: TimeSlot[] = slotsData.map((time: string) => ({
+        time,
+        available: true,
+      }));
+
+      setAvailableSlots(slots);
+    } catch (error) {
+      console.error("Error fetching available slots:", error);
+      setAvailableSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const handleDateChange = (date: Dayjs | null) => {
+    if (date) {
+      const today = dayjs().startOf('day');
+      if (date.isSame(today, 'day')) {
+        return;
+      }
+
+      const hasSlots = availableDates.some(d => d.isSame(date, 'day'));
+      if (hasSlots) {
+        setSelectedDate(date);
+      }
+    }
+  };
+
+  const handleTimeSelect = (time: string) => {
+    setSelectedTime(time);
   };
 
   const handleContinue = () => {
-    if (!selectedDate || !selectedHour) return;
+    if (!selectedDate || !selectedTime) return;
 
-    // Combinar fecha y hora en formato ISO
-    const [hours, minutes] = selectedHour.split(":");
-    const dateTime = selectedDate
-      .hour(parseInt(hours))
-      .minute(parseInt(minutes))
-      .second(0)
-      .millisecond(0);
-
-    localStorage.setItem("selectedDate", JSON.stringify(dateTime.toISOString()));
-    navigate("/public/confirm");
+    navigate("/centro-de-salud-cuad/public/patient-info", {
+      state: {
+        specialty,
+        professional,
+        date: selectedDate.format("YYYY-MM-DD"),
+        time: selectedTime,
+      },
+    });
   };
 
-  const handleDateChange = (newDate: Dayjs | null) => {
-    setSelectedDate(newDate);
-    setSelectedHour(null);
-  };
-
-  const handleBack = () => {
-    navigate("/public/select-professional");
-  };
-
-  // Deshabilitar fechas pasadas
   const shouldDisableDate = (date: Dayjs) => {
-    return date.isBefore(dayjs(), 'day');
+    const today = dayjs().startOf('day');
+    
+    if (date.isSame(today, 'day')) return true;
+    if (date.isBefore(today, 'day')) return true;
+    if (loadingDays) return false;
+    
+    return !availableDates.some(d => d.isSame(date, 'day'));
   };
 
-  const isHourBooked = (hour: string) => {
-    return bookedHours.includes(hour);
-  };
+  if (!specialty || !professional) {
+    return null;
+  }
 
-  // Generar todos los slots de horario posibles (de 8:00 a 20:00)
-  const generateTimeSlots = () => {
-    const slots = [];
-    for (let hour = 8; hour < 20; hour++) {
-      slots.push(`${hour.toString().padStart(2, '0')}:00`);
-      slots.push(`${hour.toString().padStart(2, '0')}:30`);
-    }
-    return slots;
-  };
-
-  const allTimeSlots = generateTimeSlots();
+  const minDate = dayjs().add(1, 'day');
+  const maxDate = dayjs().add(60, 'day');
 
   return (
-    <Box sx={{ px: 2 }}>
-      <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
-        <Button 
-          variant="outlined" 
-          onClick={handleBack}
-          startIcon={<ArrowBackIcon />}
-          sx={{ mr: 2 }}
-        >
-          Volver
-        </Button>
-        <Box sx={{ flex: 1, textAlign: "center" }}>
-          <Typography variant="h4" mb={0.5}>
+    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+      <Box sx={{ maxWidth: 1400, mx: "auto", p: 3 }}>
+        {/* Header */}
+        <Box sx={{ mb: 3 }}>
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate("/public/select-professional", { state: { specialty } })}
+            sx={{ mb: 2 }}
+          >
+            Volver
+          </Button>
+
+          <Typography variant="h4" gutterBottom sx={{ fontWeight: "bold" }}>
             Selecciona Fecha y Hora
           </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Servicio: <strong>{selectedService.name}</strong>
-          </Typography>
-          {selectedProfessional && (
-            <Typography variant="body2" color="text.secondary">
-              Profesional: <strong>{selectedProfessional.name}</strong>
-            </Typography>
-          )}
-        </Box>
-      </Box>
 
-      <Box sx={{ display: "flex", gap: 4, flexDirection: { xs: "column", md: "row" } }}>
-        {/* Calendario */}
-        <Box sx={{ flex: { md: "0 0 400px" } }}>
-          <Typography variant="h6" mb={2}>
-            Selecciona una Fecha
-          </Typography>
-          <Paper sx={{ p: 2 }}>
-            <DateCalendar
-              value={selectedDate}
-              onChange={handleDateChange}
-              shouldDisableDate={shouldDisableDate}
-              minDate={dayjs()}
-            />
-          </Paper>
-        </Box>
-
-        {/* Lista de horas - A LA DERECHA */}
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h6" mb={2}>
-            Horarios Disponibles
-          </Typography>
-
-          {selectedDate && (
-            <Typography variant="body2" color="text.secondary" mb={2}>
-              Fecha seleccionada: <strong>{selectedDate.format("DD/MM/YYYY")}</strong>
-            </Typography>
-          )}
-
-          {loading && (
-            <Box sx={{ display: "flex", justifyContent: "center", my: 4 }}>
-              <CircularProgress />
-            </Box>
-          )}
-
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-
-          {!loading && !error && availableHours.length === 0 && (
-            <Alert severity="info">
-              No hay horarios disponibles para esta fecha. Por favor selecciona otra fecha.
-            </Alert>
-          )}
-
-          {!loading && !error && availableHours.length > 0 && (
-            <Paper 
-              sx={{ 
-                p: 2, 
-                maxHeight: 450, 
-                overflowY: "auto",
-                "&::-webkit-scrollbar": {
-                  width: "8px"
-                },
-                "&::-webkit-scrollbar-thumb": {
-                  backgroundColor: "primary.main",
-                  borderRadius: "4px"
-                }
-              }}
-            >
-              <Grid container spacing={1.5}>
-                {allTimeSlots.map((hour) => {
-                  const isAvailable = availableHours.includes(hour);
-                  const isBooked = isHourBooked(hour);
-                  const isDisabled = !isAvailable || isBooked;
-
-                  return (
-                    <Grid item xs={6} sm={4} md={3} key={hour}>
-                      <Chip
-                        label={hour}
-                        onClick={() => !isDisabled && setSelectedHour(hour)}
-                        disabled={isDisabled}
-                        color={selectedHour === hour ? "primary" : "default"}
-                        sx={{ 
-                          width: "100%",
-                          fontSize: "14px",
-                          py: 2,
-                          cursor: isDisabled ? "not-allowed" : "pointer",
-                          opacity: isDisabled ? 0.5 : 1,
-                          backgroundColor: isBooked 
-                            ? "error.light" 
-                            : selectedHour === hour 
-                              ? undefined 
-                              : "background.paper",
-                          "&:hover": {
-                            backgroundColor: isDisabled 
-                              ? undefined 
-                              : selectedHour === hour 
-                                ? undefined 
-                                : "action.hover"
-                          },
-                          "&.Mui-disabled": {
-                            opacity: 0.4,
-                            backgroundColor: isBooked ? "error.light" : "grey.200"
-                          }
-                        }}
-                      />
-                    </Grid>
-                  );
-                })}
-              </Grid>
-
-              <Box sx={{ mt: 2, display: "flex", gap: 2, flexWrap: "wrap" }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Box sx={{ width: 16, height: 16, bgcolor: "primary.main", borderRadius: 1 }} />
-                  <Typography variant="caption">Seleccionado</Typography>
-                </Box>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Box sx={{ width: 16, height: 16, bgcolor: "secondary.light", borderRadius: 1 }} />
-                  <Typography variant="caption">No disponible</Typography>
-                </Box>
+          <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 2 }}>
+            <Stack direction="row" spacing={2} flexWrap="wrap">
+              <Box>
+                <strong>Profesional:</strong> {professional.name}
               </Box>
-            </Paper>
-          )}
-
-          <Box sx={{ mt: 3, display: "flex", gap: 2, justifyContent: "flex-end" }}>
-            <Button
-              variant="contained"
-              disabled={!selectedHour || loading}
-              onClick={handleContinue}
-              size="large"
-              sx={{ fontWeight: "bold" }}
-            >
-              Continuar
-            </Button>
-          </Box>
+              <Box>
+                <strong>Especialidad:</strong> {specialty.name} ({specialty.duration} minutos)
+              </Box>
+            </Stack>
+          </Alert>
         </Box>
+
+        {/* Loading inicial de días */}
+        {loadingDays && (
+          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}>
+            <Stack spacing={2} alignItems="center">
+              <CircularProgress size={60} />
+              <Typography variant="h6" color="text.secondary">
+                Cargando calendario...
+              </Typography>
+            </Stack>
+          </Box>
+        )}
+
+        {/* Layout Principal */}
+        {!loadingDays && (
+          <Grid container spacing={3}>
+            {/* Calendario - Siempre visible */}
+            <Grid item xs={12} md={4}>
+              <Paper elevation={2} sx={{ p: 3, height: "100%" }}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                  <CalendarIcon color="primary" />
+                  <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                    1. Selecciona una fecha
+                  </Typography>
+                </Stack>
+
+                <Box sx={{ display: "flex", justifyContent: "center" }}>
+                  <DateCalendar
+                    value={selectedDate}
+                    onChange={handleDateChange}
+                    minDate={minDate}
+                    maxDate={maxDate}
+                    shouldDisableDate={shouldDisableDate}
+                    sx={{
+                      width: "100%",
+                      maxHeight: 400,
+                      "& .MuiPickersDay-root": {
+                        fontSize: "0.9rem",
+                      },
+                      "& .MuiPickersDay-root.Mui-selected": {
+                        bgcolor: "primary.main",
+                        "&:hover": {
+                          bgcolor: "primary.dark",
+                        },
+                      },
+                    }}
+                  />
+                </Box>
+              </Paper>
+            </Grid>
+
+            {/* Columna 2: Horarios */}
+            {selectedDate && (
+              <Grid item xs={12} md={4}>
+                <Paper elevation={2} sx={{ p: 3, height: "100%" }}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                    <ScheduleIcon color="primary" />
+                    <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                      2. Selecciona una hora
+                    </Typography>
+                  </Stack>
+
+                  {loadingSlots ? (
+                    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 300 }}>
+                      <Stack spacing={2} alignItems="center">
+                        <CircularProgress />
+                        <Typography variant="body2" color="text.secondary">
+                          Cargando horarios...
+                        </Typography>
+                      </Stack>
+                    </Box>
+                  ) : availableSlots.length === 0 ? (
+                    <Alert severity="warning">
+                      No hay horarios disponibles para esta fecha
+                    </Alert>
+                  ) : (
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(2, 1fr)",
+                        gap: 1.5,
+                        maxHeight: 400,
+                        overflowY: "auto",
+                        pr: 1,
+                        "&::-webkit-scrollbar": {
+                          width: "6px",
+                        },
+                        "&::-webkit-scrollbar-thumb": {
+                          backgroundColor: "rgba(0,0,0,.2)",
+                          borderRadius: "3px",
+                        },
+                      }}
+                    >
+                      {availableSlots.map((slot) => (
+                        <Button
+                          key={slot.time}
+                          variant={selectedTime === slot.time ? "contained" : "outlined"}
+                          disabled={!slot.available}
+                          onClick={() => handleTimeSelect(slot.time)}
+                          sx={{
+                            minHeight: 50,
+                            fontSize: "1.1rem",
+                            fontWeight: selectedTime === slot.time ? "bold" : "normal",
+                            borderWidth: 2,
+                            "&:hover": {
+                              borderWidth: 2,
+                            },
+                          }}
+                        >
+                          {slot.time}
+                        </Button>
+                      ))}
+                    </Box>
+                  )}
+                </Paper>
+              </Grid>
+            )}
+
+            {/* Columna 3: Resumen*/}
+            {selectedDate && selectedTime && (
+              <Grid item xs={12} md={4}>
+                <Paper 
+                  elevation={3} 
+                  sx={{ 
+                    p: 3, 
+                    height: "100%",
+                    bgcolor: "success.50",
+                    border: "2px solid",
+                    borderColor: "success.main",
+                  }}
+                >
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                    <CheckCircleIcon color="success" />
+                    <Typography variant="h6" sx={{ fontWeight: "bold", color: "success.main" }}>
+                      Resumen de tu cita
+                    </Typography>
+                  </Stack>
+
+                  <Divider sx={{ mb: 3 }} />
+
+                  <Stack spacing={3}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                        Fecha
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                        {selectedDate.format('dddd, D [de] MMMM')}
+                      </Typography>
+                    </Box>
+
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                        Hora
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                        {selectedTime}
+                      </Typography>
+                    </Box>
+
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                        Duración
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: "bold" }}>
+                        {specialty.duration} minutos
+                      </Typography>
+                    </Box>
+
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                        Profesional
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: "bold" }}>
+                        {professional.name}
+                      </Typography>
+                    </Box>
+                  </Stack>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  <Button
+                    variant="contained"
+                    size="large"
+                    fullWidth
+                    endIcon={<ArrowForwardIcon />}
+                    onClick={handleContinue}
+                    sx={{
+                      py: 1.5,
+                      fontSize: "1.1rem",
+                      fontWeight: "bold",
+                      bgcolor: "success.main",
+                      "&:hover": {
+                        bgcolor: "success.dark",
+                      },
+                    }}
+                  >
+                    CONTINUAR
+                  </Button>
+                </Paper>
+              </Grid>
+            )}
+          </Grid>
+        )}
       </Box>
-    </Box>
+    </LocalizationProvider>
   );
 }

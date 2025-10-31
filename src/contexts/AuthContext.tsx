@@ -2,6 +2,7 @@ import { createContext, useContext, useState, ReactNode, useEffect } from "react
 import { Chip } from "@mui/material";
 
 interface User {
+  id: number;
   email: string;
   name: string;
   role: "admin" | "member" | "limited" | "patient";
@@ -21,7 +22,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Cargar usuario desde localStorage al iniciar
   useEffect(() => {
     try {
       const savedUser = localStorage.getItem("user");
@@ -70,21 +70,19 @@ export function useAuth() {
   return context;
 }
 
-// Función helper para verificar permisos
 export function canAccess(role: string | undefined, permission: string): boolean {
   if (!role) return false;
 
   const permissions: Record<string, string[]> = {
     admin: ["canEditCenter", "canManageServices", "canManageUsers", "canViewAll"],
     member: ["canManageServices", "canViewAll"],
-    limited: ["canViewOwn"],
+    limited: ["canManageServices", "canViewOwn"],
     patient: [],
   };
 
   return permissions[role]?.includes(permission) || false;
 }
 
-// Componente para renderizado condicional basado en permisos
 interface CanAccessProps {
   permission: string;
   children: ReactNode;
@@ -101,7 +99,6 @@ export function CanAccess({ permission, children, fallback = null }: CanAccessPr
   return <>{children}</>;
 }
 
-// Componente para mostrar badge del rol
 export function RoleBadge() {
   const { user } = useAuth();
 

@@ -10,16 +10,16 @@ import {
   Alert,
   IconButton,
   Button,
-  useTheme
 } from "@mui/material";
 import { 
   AccessTime as TimeIcon,
   AttachMoney as MoneyIcon,
   People as PeopleIcon,
   ArrowBack as ArrowBackIcon,
-  ArrowForward as ArrowForwardIcon
+  ArrowForward as ArrowForwardIcon,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
+import { api } from "../../api/apiClient";
 
 interface Specialty {
   id: number;
@@ -27,12 +27,12 @@ interface Specialty {
   description: string;
   duration: number;
   price: number;
+  color: string;
   professionals_count: number;
 }
 
 export default function Reservar() {
   const navigate = useNavigate();
-  const theme = useTheme();
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -44,25 +44,42 @@ export default function Reservar() {
 
   const fetchSpecialties = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/services");
-      if (!response.ok) throw new Error("Error al cargar especialidades");
+      const response = await api.get('/specialties?include_professionals=true');
       
-      const data = await response.json();
-      setSpecialties(data);
+      // Filtrar solo especialidades con profesionales disponibles (excluyendo admins)
+      const availableSpecialties = response.data.filter(
+        (spec: Specialty) => (spec.professionals_count || 0) > 0
+      );
+      
+      setSpecialties(availableSpecialties);
+      
+      if (availableSpecialties.length === 0) {
+        setError("No hay especialidades disponibles en este momento");
+      }
     } catch (err: any) {
-      setError(err.message);
+      setError(err.response?.data?.error || "Error al cargar especialidades");
     } finally {
       setLoading(false);
     }
   };
 
   const handleSelect = (specialty: Specialty) => {
-    localStorage.setItem("selectedService", JSON.stringify(specialty));
-    navigate("/public/select-professional");
+    navigate("/centro-de-salud-cuad/public/select-professional", {
+      state: { 
+        specialty: {
+          id: specialty.id,
+          name: specialty.name,
+          description: specialty.description,
+          duration: specialty.duration,
+          price: specialty.price,
+          color: specialty.color,
+        }
+      }
+    });
   };
 
   const handleBack = () => {
-    navigate("/public");
+    navigate("/centro-de-salud-cuad/public");
   };
 
   const handlePrev = () => {
@@ -76,6 +93,15 @@ export default function Reservar() {
   const getVisibleCards = () => {
     if (specialties.length === 0) return [];
     
+    // Si solo hay 1 o 2 especialidades, mostrarlas sin wrap-around
+    if (specialties.length <= 2) {
+      return specialties.map((specialty, idx) => ({
+        specialty,
+        position: idx - currentIndex
+      }));
+    }
+    
+    // Para 3 o más, hacer wrap-around
     const visible = [];
     for (let i = -1; i <= 1; i++) {
       let index = currentIndex + i;
@@ -88,8 +114,9 @@ export default function Reservar() {
 
   if (loading) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", mt: 10 }}>
-        <CircularProgress />
+      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 2 }}>
+        <CircularProgress size={60} />
+        <Typography variant="h6">Cargando especialidades...</Typography>
       </Box>
     );
   }
@@ -101,8 +128,8 @@ export default function Reservar() {
           {error}
         </Alert>
         <Box sx={{ display: "flex", justifyContent: "center" }}>
-          <Button variant="outlined" onClick={handleBack}>
-            Volver
+          <Button variant="outlined" onClick={handleBack} startIcon={<ArrowBackIcon />}>
+            Volver al inicio
           </Button>
         </Box>
       </Box>
@@ -113,11 +140,11 @@ export default function Reservar() {
     return (
       <Box>
         <Alert severity="info" sx={{ mb: 3 }}>
-          No hay especialidades disponibles en este momento.
+          No hay especialidades con profesionales disponibles en este momento.
         </Alert>
         <Box sx={{ display: "flex", justifyContent: "center" }}>
-          <Button variant="outlined" onClick={handleBack}>
-            Volver
+          <Button variant="outlined" onClick={handleBack} startIcon={<ArrowBackIcon />}>
+            Volver al inicio
           </Button>
         </Box>
       </Box>
@@ -125,6 +152,7 @@ export default function Reservar() {
   }
 
   const visibleCards = getVisibleCards();
+  const canNavigate = specialties.length > 1;
 
   return (
     <Box>
@@ -138,7 +166,7 @@ export default function Reservar() {
           Volver
         </Button>
         <Box sx={{ flex: 1, textAlign: "center" }}>
-          <Typography variant="h4" mb={0.5}>
+          <Typography variant="h4" mb={0.5} sx={{ fontWeight: 'bold' }}>
             Reservar una Hora
           </Typography>
           <Typography variant="body1" color="text.secondary">
@@ -155,20 +183,22 @@ export default function Reservar() {
         minHeight: 450,
         py: 4
       }}>
-        {/* Botón izquierdo */}
-        <IconButton
-          onClick={handlePrev}
-          sx={{
-            position: "absolute",
-            left: 0,
-            zIndex: 2,
-            bgcolor: "background.paper",
-            boxShadow: 2,
-            "&:hover": { bgcolor: "action.hover" }
-          }}
-        >
-          <ArrowBackIcon />
-        </IconButton>
+        {/* Botón izquierdo - Solo mostrar si hay más de 1 especialidad */}
+        {canNavigate && (
+          <IconButton
+            onClick={handlePrev}
+            sx={{
+              position: "absolute",
+              left: 0,
+              zIndex: 2,
+              bgcolor: "background.paper",
+              boxShadow: 2,
+              "&:hover": { bgcolor: "action.hover" }
+            }}
+          >
+            <ArrowBackIcon />
+          </IconButton>
+        )}
 
         {/* Contenedor del carrusel */}
         <Box sx={{ 
@@ -178,7 +208,7 @@ export default function Reservar() {
           gap: 2,
           width: "100%",
           maxWidth: 1200,
-          px: 8
+          px: canNavigate ? 8 : 2
         }}>
           {visibleCards.map(({ specialty, position }) => {
             const isCurrent = position === 0;
@@ -191,12 +221,12 @@ export default function Reservar() {
                 key={specialty.id}
                 sx={{ 
                   width: isCurrent ? 400 : 300,
-                  height: isCurrent ? 400 : 320,
+                  height: isCurrent ? 420 : 340,
                   transition: "all 0.4s ease-in-out",
                   transform: `scale(${scale})`,
                   opacity,
                   zIndex,
-                  border: isCurrent ? `3px solid ${theme.palette.primary.main}` : "none",
+                  border: isCurrent ? `3px solid primary.main` : "none",
                   boxShadow: isCurrent ? 6 : 2,
                   cursor: isCurrent ? "pointer" : "default",
                   pointerEvents: isCurrent ? "auto" : "none"
@@ -204,24 +234,44 @@ export default function Reservar() {
               >
                 <CardActionArea 
                   onClick={() => isCurrent && handleSelect(specialty)}
-                  sx={{ height: "100%", p: 2 }}
+                  sx={{ height: "100%", display: "flex", flexDirection: "column" }}
                   disabled={!isCurrent}
                 >
-                  <CardContent>
+                  {/* Header simple sin color */}
+                  <Box 
+                    sx={{ 
+                      width: "100%",
+                      height: isCurrent ? 100 : 80,
+                      bgcolor: "primary.main",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.4s ease-in-out"
+                    }}
+                  >
                     <Typography 
-                      variant={isCurrent ? "h4" : "h5"} 
-                      gutterBottom 
-                      color="primary"
-                      sx={{ fontWeight: isCurrent ? "bold" : "normal" }}
+                      variant={isCurrent ? "h4" : "h5"}
+                      sx={{ 
+                        color: "white",
+                        fontWeight: "bold",
+                        textAlign: "center",
+                        px: 2,
+                      }}
                     >
                       {specialty.name}
                     </Typography>
-                    
+                  </Box>
+
+                  {/* Contenido */}
+                  <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column", p: 2.5 }}>
                     <Typography 
                       variant="body2" 
                       color="text.secondary" 
                       mb={2}
-                      sx={{ minHeight: isCurrent ? 80 : 60 }}
+                      sx={{ 
+                        minHeight: isCurrent ? 60 : 50,
+                        flex: 1
+                      }}
                     >
                       {specialty.description || "Atención especializada profesional"}
                     </Typography>
@@ -237,14 +287,14 @@ export default function Reservar() {
                       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                         <MoneyIcon fontSize="small" color="action" />
                         <Typography variant={isCurrent ? "body1" : "body2"}>
-                          <strong>Precio:</strong> ${specialty.price.toLocaleString('es-CL')} CLP
+                          <strong>Precio:</strong> ${specialty.price.toLocaleString('es-CL')}
                         </Typography>
                       </Box>
 
                       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                         <PeopleIcon fontSize="small" color="action" />
                         <Typography variant={isCurrent ? "body1" : "body2"}>
-                          <strong>{specialty.professionals_count}</strong> {specialty.professionals_count === 1 ? "profesional" : "profesionales"}
+                          <strong>{specialty.professionals_count}</strong> {specialty.professionals_count === 1 ? "profesional disponible" : "profesionales disponibles"}
                         </Typography>
                       </Box>
                     </Box>
@@ -252,10 +302,16 @@ export default function Reservar() {
                     {isCurrent && (
                       <Box sx={{ mt: 3, textAlign: "center" }}>
                         <Chip 
-                          label="Reservar ahora" 
-                          color="primary" 
+                          label="Seleccionar" 
+                          icon={<ArrowForwardIcon />}
+                          color="primary"
                           size="medium"
-                          sx={{ fontWeight: "bold", fontSize: "1rem", py: 2 }}
+                          sx={{ 
+                            fontWeight: "bold", 
+                            fontSize: "1rem", 
+                            py: 2.5,
+                            px: 3,
+                          }}
                         />
                       </Box>
                     )}
@@ -266,39 +322,43 @@ export default function Reservar() {
           })}
         </Box>
 
-        {/* Botón derecho */}
-        <IconButton
-          onClick={handleNext}
-          sx={{
-            position: "absolute",
-            right: 0,
-            zIndex: 2,
-            bgcolor: "background.paper",
-            boxShadow: 2,
-            "&:hover": { bgcolor: "action.hover" }
-          }}
-        >
-          <ArrowForwardIcon />
-        </IconButton>
+        {/* Botón derecho - Solo mostrar si hay más de 1 especialidad */}
+        {canNavigate && (
+          <IconButton
+            onClick={handleNext}
+            sx={{
+              position: "absolute",
+              right: 0,
+              zIndex: 2,
+              bgcolor: "background.paper",
+              boxShadow: 2,
+              "&:hover": { bgcolor: "action.hover" }
+            }}
+          >
+            <ArrowForwardIcon />
+          </IconButton>
+        )}
       </Box>
 
       {/* Indicadores */}
-      <Box sx={{ display: "flex", justifyContent: "center", gap: 1, mt: 3 }}>
-        {specialties.map((_, index) => (
-          <Box
-            key={index}
-            onClick={() => setCurrentIndex(index)}
-            sx={{
-              width: currentIndex === index ? 32 : 8,
-              height: 8,
-              borderRadius: 4,
-              bgcolor: currentIndex === index ? "primary.main" : "action.disabled",
-              cursor: "pointer",
-              transition: "all 0.3s ease"
-            }}
-          />
-        ))}
-      </Box>
+      {canNavigate && (
+        <Box sx={{ display: "flex", justifyContent: "center", gap: 1, mt: 3 }}>
+          {specialties.map((specialty, index) => (
+            <Box
+              key={specialty.id}
+              onClick={() => setCurrentIndex(index)}
+              sx={{
+                width: currentIndex === index ? 32 : 8,
+                height: 8,
+                borderRadius: 4,
+                bgcolor: currentIndex === index ? "primary.main" : "action.disabled",
+                cursor: "pointer",
+                transition: "all 0.3s ease"
+              }}
+            />
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }

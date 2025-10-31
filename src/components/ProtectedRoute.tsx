@@ -32,21 +32,21 @@ export default function ProtectedRoute({
     );
   }
 
-  // Si no está autenticado, redirigir al login
+  // Redirigir a la ruta correcta del login
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/centro-de-salud-cuad/login" replace />;
   }
 
   // Verificar roles permitidos
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/centro-de-salud-cuad/private/dashboard" replace />;
   }
 
   // Verificar permisos específicos
   if (requiredPermission && user) {
     const hasPermission = checkPermission(user.role, requiredPermission);
     if (!hasPermission) {
-      return <Navigate to="/dashboard" replace />;
+      return <Navigate to="/centro-de-salud-cuad/private/dashboard" replace />;
     }
   }
 

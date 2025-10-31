@@ -7,7 +7,7 @@ export default function Success() {
   return (
     <Stack alignItems="center" spacing={2} mt={10}>
       <Typography variant="h4">¡Cita agendada con éxito! 🎉</Typography>
-      <Button variant="contained" onClick={() => navigate("/")}>
+      <Button variant="contained" onClick={() => navigate("centro-de-salud-cuad/")}>
         Volver al inicio
       </Button>
     </Stack>
