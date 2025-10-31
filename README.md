@@ -12,6 +12,11 @@ Este proyecto es el frontend de la aplicación Encuadrado, desarrollado como par
 - Framework/Librería: React
 - Tecnología Usada: Vite
 
+## 📋 Requisitos Previos
+
+- Node.js 24.11.0 o superior
+- npm (gestor de paquetes de JavaScript)
+
 ## 📦 Instalación
 
 ```bash
