@@ -31,6 +31,13 @@ npm install
 # o
 yarn install
 ```
+## 🔧 Configuración
+
+Crear un archivo ```.env``` en la ruta ```Encuadrado-Front/``` con el siguiente código:
+
+```bash
+VITE_API_BASE_URL=http://localhost:5000/api
+```
 
 ## 🏃‍♂️ Ejecución
 
@@ -81,13 +88,6 @@ Encuadrado-Front/
     - Puede ver el Dashboard, las Agendas y Gestión de Citas de sus Especialidades asignadas.
     - Visualizar Especialidades, así como ver los Términos y Condiciones de cada Especialidad.
 
-## 🔧 Configuración
-
-Crear un archivo ```.env``` en la ruta ```Encuadrado-Front/``` con el siguiente código:
-
-```bash
-VITE_API_BASE_URL=http://localhost:5000/api
-```
 
 ## 👤 Autor
 
